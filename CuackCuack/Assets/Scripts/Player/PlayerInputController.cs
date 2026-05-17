@@ -5,30 +5,31 @@ using static InputSystem_Actions;
 
 namespace Player
 {
-    /// <summary>
-    /// Single entry point for all player input.
-    /// Translates raw input into events that other scripts subscribe to.
-    /// Attach to the Player root GameObject.
-    /// </summary>
     public class PlayerInputController : MonoBehaviour, IPlayerActions
     {
         // ── Events ────────────────────────────────────────────────────────────────
 
-        public event UnityAction<Vector2> OnMoveEvent = delegate { };
-        public event UnityAction<Vector2> OnLookEvent = delegate { };
-        public event UnityAction<Vector2> OnScrollEvent = delegate { };
-        public event UnityAction OnJumpEvent = delegate { };
-        public event UnityAction OnInteractEvent = delegate { };
-        public event UnityAction OnPickUpEvent = delegate { };
-        public event UnityAction OnDropEvent = delegate { };
+        public event UnityAction<Vector2> OnMoveEvent         = delegate { };
+        public event UnityAction<Vector2> OnLookEvent         = delegate { };
+        public event UnityAction<Vector2> OnScrollEvent       = delegate { };
+        public event UnityAction          OnJumpEvent         = delegate { };
+        public event UnityAction          OnInteractEvent     = delegate { };
+        public event UnityAction          OnPickUpEvent       = delegate { };
+        public event UnityAction          OnDropEvent         = delegate { };
         public event UnityAction<Vector2> OnRotateObjectEvent = delegate { };
+        public event UnityAction          OnNotebookEvent     = delegate { };
 
-        public static event UnityAction OnPauseEvent;   // static so the UI can listen without a reference
+        public static event UnityAction OnPauseEvent;
 
         // ── Internal ──────────────────────────────────────────────────────────────
 
         private InputSystem_Actions _inputActions;
-        private bool _cameraLocked;
+
+        // Dos flags independientes — la cámara se bloquea si cualquiera es true.
+        private bool _lockedByRotation; // PlayerInteraction lo controla cada frame
+        private bool _lockedByUI;       // NotebookUI / menús lo controlan por eventos
+
+        private bool IsCameraLocked => _lockedByRotation || _lockedByUI;
 
         // ── Unity lifecycle ───────────────────────────────────────────────────────
 
@@ -38,25 +39,26 @@ namespace Player
             _inputActions.Player.SetCallbacks(this);
         }
 
-        void OnEnable() => _inputActions.Enable();
+        void OnEnable()  => _inputActions.Enable();
         void OnDisable() => _inputActions.Disable();
+
+        // ── Public API ────────────────────────────────────────────────────────────
+
+        /// <summary>Llamado cada frame por PlayerInteraction al rotar un objeto.</summary>
+        public void SetCameraLocked(bool locked) => _lockedByRotation = locked;
+
+        /// <summary>Llamado por UI (notebook, menús). No interfiere con la rotación de objetos.</summary>
+        public void SetCameraLockedByUI(bool locked) => _lockedByUI = locked;
 
         // ── IPlayerActions callbacks ──────────────────────────────────────────────
 
         public void OnMove(InputAction.CallbackContext context)
             => OnMoveEvent.Invoke(context.ReadValue<Vector2>());
 
-        public void SetCameraLocked(bool locked) => _cameraLocked = locked;
         public void OnLook(InputAction.CallbackContext context)
         {
-            if (!_cameraLocked)
-            {
-                OnLookEvent.Invoke(context.ReadValue<Vector2>());
-            }
-            else
-            {
-                OnLookEvent.Invoke(Vector2.zero);  // ignore look input when camera is locked
-            }
+            var value = IsCameraLocked ? Vector2.zero : context.ReadValue<Vector2>();
+            OnLookEvent.Invoke(value);
         }
 
         public void OnScroll(InputAction.CallbackContext context)
@@ -64,50 +66,34 @@ namespace Player
 
         public void OnJump(InputAction.CallbackContext context)
         {
-            if (context.started)
-            {
-                OnJumpEvent.Invoke();
-            }
+            if (context.started) OnJumpEvent.Invoke();
         }
 
         public void OnInteract(InputAction.CallbackContext context)
         {
-            if (context.started)
-            {
-                OnInteractEvent.Invoke();
-            }
-            /*
-         * No va el context.performed
-        if (context.performed)
-        {
-            Debug.Log("performed");
-            OnInteractEvent.Invoke();
-        }
-        */
+            if (context.started) OnInteractEvent.Invoke();
         }
 
         public void OnPauseGame(InputAction.CallbackContext context)
         {
-            Debug.Log("Pause input received");
-            if (context.performed) OnPauseEvent?.Invoke();
+            if (context.started) OnPauseEvent?.Invoke();
         }
 
         public void OnPickUp(InputAction.CallbackContext context)
         {
-            if (context.started)
-            {
-                OnPickUpEvent.Invoke();
-            }
-            if (context.canceled)
-            {
-                OnDropEvent.Invoke();
-            }
+            if (context.started)  OnPickUpEvent.Invoke();
+            if (context.canceled) OnDropEvent.Invoke();
         }
 
         public void OnRotateObject(InputAction.CallbackContext context)
         {
-            if (context.started) OnRotateObjectEvent.Invoke(Vector2.one);   // señal de inicio
-            if (context.canceled) OnRotateObjectEvent.Invoke(Vector2.zero);  // señal de fin
+            if (context.started)  OnRotateObjectEvent.Invoke(Vector2.one);
+            if (context.canceled) OnRotateObjectEvent.Invoke(Vector2.zero);
+        }
+
+        public void OnNotebook(InputAction.CallbackContext context)
+        {
+            if (context.performed) OnNotebookEvent.Invoke();
         }
     }
 }

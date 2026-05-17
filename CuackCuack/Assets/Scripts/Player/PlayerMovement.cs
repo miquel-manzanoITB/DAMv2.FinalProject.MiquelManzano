@@ -15,20 +15,16 @@ namespace Player
         [Header("Jump")]
         public float jumpForce = 5f;
 
-        [Header("Drag")]
-        public float groundDrag = 6f;
-        public float airDrag = 1f;
-
         [Header("Ground Check")]
         public float rayLength = 1.1f;
         public LayerMask groundLayer;
-        public float groundCheckRadius;
 
         // ── Internal ──────────────────────────────────────────────────────────────
 
         private Rigidbody _rb;
         private PlayerInputController _input;
         private PlayerCamera _playerCamera;
+        private PlayerInteraction _interaction;
         private Vector2 _moveInput;
         private bool _isGrounded;
 
@@ -39,6 +35,7 @@ namespace Player
             _rb = GetComponent<Rigidbody>();
             _input = GetComponent<PlayerInputController>();
             _playerCamera = GetComponent<PlayerCamera>();
+            _interaction = GetComponent<PlayerInteraction>();
 
             _rb.freezeRotation = true;
         }
@@ -58,7 +55,6 @@ namespace Player
         void Update()
         {
             CheckGround();
-            //ApplyDrag();
             _playerCamera.SetMoving(_moveInput != Vector2.zero && _isGrounded);
         }
 
@@ -73,12 +69,11 @@ namespace Player
 
         void OnJump()
         {
-            Debug.Log("Jump input received");
-            if (_isGrounded)
-            {
+            // FIX: Do not jump if the player is standing on a held object.
+            // This prevents the "flying" exploit where you place an object under
+            // yourself and keep jumping off it.
+            if (_isGrounded && !IsStandingOnHeldObject())
                 Jump();
-                Debug.Log("Jump executed");
-            }
         }
 
         // ── Private methods ───────────────────────────────────────────────────────
@@ -101,29 +96,31 @@ namespace Player
 
         void Jump()
         {
-            // Reset vertical velocity for a consistent jump height
             _rb.linearVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
             _rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
         }
 
-        public void SuperJump()
-        {
-            _rb.linearVelocity = new Vector3(_rb.linearVelocity.x, 0f, _rb.linearVelocity.z);
-            _rb.AddForce(Vector3.up * 100, ForceMode.Impulse);
-        }
-
         void CheckGround()
         {
-            Ray ray = new Ray(transform.position, Vector3.down);
-            Vector3 origin = transform.position + Vector3.up * (groundCheckRadius + 0.1f);
-            //_isGrounded = Physics.SphereCast(origin, groundCheckRadius, Vector3.down, out _, rayLength, groundLayer);
+            Vector3 origin = transform.position + Vector3.up * 0.1f;
             _isGrounded = Physics.Raycast(origin, Vector3.down, rayLength, groundLayer);
             Debug.DrawRay(origin, Vector3.down * rayLength, _isGrounded ? Color.green : Color.red);
         }
 
-        void ApplyDrag()
+        /// <summary>
+        /// Returns true if the object directly beneath the player is the one
+        /// currently being held by PlayerInteraction. This prevents the flying exploit.
+        /// </summary>
+        bool IsStandingOnHeldObject()
         {
-            _rb.linearDamping = _isGrounded ? groundDrag : airDrag;
+            if (_interaction == null || !_interaction.IsDragging) return false;
+
+            Vector3 origin = transform.position + Vector3.up * 0.1f;
+            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, rayLength))
+            {
+                return hit.collider.gameObject == _interaction.DraggedObject;
+            }
+            return false;
         }
     }
 }
