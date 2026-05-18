@@ -23,15 +23,26 @@ namespace Player
         [Header("Crosshair")]
         public Image crosshair;
 
+        // ── Public state (used by PlayerMovement for the flying fix) ──────────────
+
+        /// <summary>True while the player is holding (dragging) an object.</summary>
+        public bool IsDragging => _isDragging && _dragging != null;
+
+        /// <summary>The GameObject currently being dragged, or null.</summary>
+        public GameObject DraggedObject => _dragging != null ? _dragging.gameObject : null;
+
+        // ── Internal ──────────────────────────────────────────────────────────────
+
         private Interactable _hovered;
         private Interactable _dragging;
         private float _dragDistance;
         private bool _isDragging;
         private float _scrollDirection;
         private bool _isRotating;
-        private Vector2 _rotateDelta;
 
         private PlayerInputController _input;
+
+        // ── Unity lifecycle ───────────────────────────────────────────────────────
 
         void Awake()
         {
@@ -40,19 +51,19 @@ namespace Player
 
         void OnEnable()
         {
-            _input.OnInteractEvent += OnInteract;
-            _input.OnPickUpEvent += OnPickUp;
-            _input.OnDropEvent += OnDrop;
-            _input.OnScrollEvent += OnScroll;
+            _input.OnInteractEvent  += OnInteract;
+            _input.OnPickUpEvent    += OnPickUp;
+            _input.OnDropEvent      += OnDrop;
+            _input.OnScrollEvent    += OnScroll;
             _input.OnRotateObjectEvent += OnRotateObject;
         }
 
         void OnDisable()
         {
-            _input.OnInteractEvent -= OnInteract;
-            _input.OnPickUpEvent -= OnPickUp;
-            _input.OnDropEvent -= OnDrop;
-            _input.OnScrollEvent -= OnScroll;
+            _input.OnInteractEvent  -= OnInteract;
+            _input.OnPickUpEvent    -= OnPickUp;
+            _input.OnDropEvent      -= OnDrop;
+            _input.OnScrollEvent    -= OnScroll;
             _input.OnRotateObjectEvent -= OnRotateObject;
         }
 
@@ -64,18 +75,19 @@ namespace Player
             HandleRotation();
         }
 
+        // ── Input handlers ────────────────────────────────────────────────────────
+
         void OnInteract()
         {
-            if (_hovered != null)
-                _hovered.Interact();
+            _hovered?.Interact();
         }
 
         void OnPickUp()
         {
             _isDragging = true;
-            if (_hovered != null)
-                _hovered.PickUp();
+            _hovered?.PickUp();
         }
+
         void OnDrop()
         {
             _isDragging = false;
@@ -88,14 +100,14 @@ namespace Player
 
         void OnRotateObject(Vector2 signal)
         {
-            // signal.x > 0 → started,  == zero → canceled
             _isRotating = signal != Vector2.zero;
         }
 
-        // Detecta qué objeto está mirando el jugador
+        // ── Private methods ───────────────────────────────────────────────────────
+
         void HandleHover()
         {
-            Ray ray = playerCamera.ScreenPointToRay(new Vector2(Screen.width / 2, Screen.height / 2));
+            Ray ray = playerCamera.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f));
 
             if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableLayer))
             {
@@ -103,24 +115,31 @@ namespace Player
                 if (interactable != _hovered)
                 {
                     _hovered = interactable;
-                    // Aquí podrías activar un crosshair o hint en el futuro
-                    crosshair.color = Color.green; // Ejemplo: cambiar color del crosshair
+                    if (crosshair) crosshair.color = Color.gray7;
+
+                    // Show interaction hint
+                    Managers.UIManager.Instance?.ShowInteractionHint(_hovered?.GetHintText());
                 }
             }
             else
             {
+                if (_hovered != null)
+                {
+                    Managers.UIManager.Instance?.HideInteractionHint();
+                }
                 _hovered = null;
-                crosshair.color = Color.white; // Ejemplo: cambiar color del crosshair cuando no hay objeto
+                if (crosshair) crosshair.color = Color.gray9;
             }
+
             Debug.DrawRay(ray.origin, ray.direction * interactRange, _hovered != null ? Color.green : Color.red);
         }
 
         void HandleDragInput()
         {
-            // Empezar arrastre
+            // Start drag
             if (_isDragging && _hovered != null && _dragging == null)
             {
-                Ray ray = playerCamera.ScreenPointToRay(new Vector2(Screen.width / 2, Screen.height / 2));
+                Ray ray = playerCamera.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f));
                 if (Physics.Raycast(ray, out RaycastHit hit, interactRange, interactableLayer))
                 {
                     _dragging = _hovered;
@@ -129,15 +148,15 @@ namespace Player
                 }
             }
 
-            // Arrastrar cada frame
+            // Drag each frame
             if (_dragging != null && _isDragging)
             {
-                Ray ray = playerCamera.ScreenPointToRay(new Vector2(Screen.width / 2, Screen.height / 2));
+                Ray ray = playerCamera.ScreenPointToRay(new Vector2(Screen.width / 2f, Screen.height / 2f));
                 Vector3 targetPos = ray.GetPoint(_dragDistance);
                 _dragging.DragTowards(targetPos);
             }
 
-            // Soltar
+            // Release
             if (!_isDragging && _dragging != null)
             {
                 _dragging.StopDrag();
@@ -145,7 +164,6 @@ namespace Player
             }
         }
 
-        // Rueda del ratón: acercar o alejar el objeto mientras se arrastra
         void HandleScroll()
         {
             if (_dragging == null) return;
@@ -155,17 +173,11 @@ namespace Player
 
         void HandleRotation()
         {
-            // Solo bloqueamos la cámara si hay objeto siendo arrastrado
             bool shouldRotate = _isRotating && _dragging != null;
-
-            // Bloquear/desbloquear cámara
-            // (necesitas una referencia a PlayerCamera o PlayerInputController)
-            // Opción sencilla: deshabilitar el look via evento
             _input.SetCameraLocked(shouldRotate);
 
             if (!shouldRotate) return;
 
-            // Leer el delta del ratón directamente aquí
             Vector2 delta = Mouse.current.delta.ReadValue();
             if (delta != Vector2.zero)
                 _dragging.ApplyRotation(delta, playerCamera.transform, rotateSensitivity);
