@@ -43,7 +43,7 @@ namespace Managers
                 // Wire click
                 var btn = go.GetComponent<Button>();
                 string sceneName = level.sceneName; // capture for lambda
-                btn?.onClick.AddListener(() => GameManager.Instance?.LoadScene(sceneName));
+                btn?.onClick.AddListener(() => LevelManager.Instance?.LoadLevel(sceneName));
 
                 // Dim if locked
                 if (!level.isUnlocked && btn)

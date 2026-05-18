@@ -86,6 +86,8 @@ namespace Managers
             }
         }
 
+        public void CompleteTask(string description) => taskData.CompleteTask(description);
+
         // ── Private methods ───────────────────────────────────────────────────────
 
         void ToggleNotebook()

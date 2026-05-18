@@ -1,13 +1,13 @@
 using Player;
 using UnityEngine;
 using UnityEngine.Events;
-using UnityEngine.SceneManagement;
 
 namespace Managers
 {
     /// <summary>
-    /// Central game manager. Handles scene transitions, pause state and global game flow.
-    /// Singleton — persists across scenes. Place on a single GameObject in your first scene.
+    /// Handles game state: pause and global events.
+    /// Scene transitions have moved to LevelManager.
+    /// Singleton — persists across scenes.
     /// </summary>
     public class GameManager : MonoBehaviour
     {
@@ -15,27 +15,18 @@ namespace Managers
 
         // ── Events ────────────────────────────────────────────────────────────────
 
-        public static event UnityAction<bool> OnPauseChanged;   // true = paused
+        public static event UnityAction<bool> OnPauseChanged;
         public static event UnityAction OnGameStart;
 
         // ── State ─────────────────────────────────────────────────────────────────
 
         public bool IsPaused { get; private set; }
 
-        [Header("Scene Names")]
-        public string mainMenuScene = "MainMenu";
-        public string level01GameScene = "Level01";
-        public string level02GameScene = "Level02";
-
-        // ── Singleton setup ───────────────────────────────────────────────────────
+        // ── Singleton ─────────────────────────────────────────────────────────────
 
         void Awake()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
             DontDestroyOnLoad(gameObject);
         }
@@ -43,48 +34,13 @@ namespace Managers
         void OnEnable()
         {
             PlayerInputController.OnPauseEvent += TogglePause;
-            SceneManager.sceneLoaded += OnSceneLoaded;
+            LevelManager.OnSceneLoaded += OnSceneLoaded;
         }
 
         void OnDisable()
         {
             PlayerInputController.OnPauseEvent -= TogglePause;
-            SceneManager.sceneLoaded -= OnSceneLoaded;
-        }
-
-        // ── Scene management ──────────────────────────────────────────────────────
-
-        public void LoadScene(string sceneName)
-        {
-            SetPause(false);            // always unpause before transitioning
-            UIManager.Instance?.ShowLoadingScreen(true);
-            SceneManager.LoadScene(sceneName);
-        }
-
-        public void LoadScene(int buildIndex) => LoadScene(SceneManager.GetSceneByBuildIndex(buildIndex).name);
-
-        public void ReloadCurrentScene() => LoadScene(SceneManager.GetActiveScene().name);
-
-        public void LoadMainMenu() => LoadScene(mainMenuScene);
-
-        public void LoadLevel01() => LoadScene(level01GameScene);
-        public void LoadLevel02() => LoadScene(level02GameScene);
-
-        public void QuitGame()
-        {
-#if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
-#else
-        Application.Quit();
-#endif
-        }
-
-        void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-        {
-            UIManager.Instance?.ShowLoadingScreen(false);
-
-            bool isGameScene = scene.name != mainMenuScene;
-            if (isGameScene) OnGameStart?.Invoke();
+            LevelManager.OnSceneLoaded -= OnSceneLoaded;
         }
 
         // ── Pause ─────────────────────────────────────────────────────────────────
@@ -97,11 +53,27 @@ namespace Managers
 
             IsPaused = paused;
             Time.timeScale = paused ? 0f : 1f;
-
             Cursor.lockState = paused ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = paused;
 
             OnPauseChanged?.Invoke(paused);
+        }
+
+        public void QuitGame()
+        {
+#if UNITY_EDITOR
+            UnityEditor.EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
+        }
+
+        // ── Internal ──────────────────────────────────────────────────────────────
+
+        void OnSceneLoaded(string sceneName)
+        {
+            bool isGameScene = !LevelManager.Instance.IsMainMenu();
+            if (isGameScene) OnGameStart?.Invoke();
         }
     }
 }
