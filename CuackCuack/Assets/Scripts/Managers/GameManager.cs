@@ -24,7 +24,8 @@ namespace Managers
 
         [Header("Scene Names")]
         public string mainMenuScene = "MainMenu";
-        public string firstGameScene = "Level01";
+        public string level01GameScene = "Level01";
+        public string level02GameScene = "Level02";
 
         // ── Singleton setup ───────────────────────────────────────────────────────
 
@@ -66,7 +67,8 @@ namespace Managers
 
         public void LoadMainMenu() => LoadScene(mainMenuScene);
 
-        public void StartGame() => LoadScene(firstGameScene);
+        public void LoadLevel01() => LoadScene(level01GameScene);
+        public void LoadLevel02() => LoadScene(level02GameScene);
 
         public void QuitGame()
         {

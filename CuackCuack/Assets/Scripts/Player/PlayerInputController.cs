@@ -39,8 +39,17 @@ namespace Player
             _inputActions.Player.SetCallbacks(this);
         }
 
-        void OnEnable()  => _inputActions.Enable();
-        void OnDisable() => _inputActions.Disable();
+        void OnEnable()
+        {
+            _inputActions.Enable();
+            Managers.GameManager.OnPauseChanged += SetCameraLockedByUI;
+        }
+
+        void OnDisable()
+        {
+            _inputActions.Disable();
+            Managers.GameManager.OnPauseChanged -= SetCameraLockedByUI;
+        }
 
         // ── Public API ────────────────────────────────────────────────────────────
 
@@ -76,7 +85,7 @@ namespace Player
 
         public void OnPauseGame(InputAction.CallbackContext context)
         {
-            if (context.started) OnPauseEvent?.Invoke();
+            if (context.performed) OnPauseEvent?.Invoke();
         }
 
         public void OnPickUp(InputAction.CallbackContext context)
