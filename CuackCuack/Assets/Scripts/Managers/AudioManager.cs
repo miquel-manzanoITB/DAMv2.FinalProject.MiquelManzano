@@ -1,214 +1,288 @@
+using System;
 using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
+/// <summary>
+/// AudioManager - Singleton para gestión centralizada de audio.
+/// Coloca este script en un GameObject vacío llamado "AudioManager" en tu primera escena.
+/// </summary>
 public class AudioManager : MonoBehaviour
 {
     public static AudioManager Instance { get; private set; }
 
-    [Header("Persist Between Scenes")]
-    public bool dontDestroyOnLoad = true;
+    [Header("=== MÚSICA DE FONDO ===")]
+    [SerializeField] private AudioSource musicSource;
+    [SerializeField] private AudioSource musicSourceB; // Para crossfade
+    [SerializeField] [Range(0f, 1f)] private float musicVolume = 0.5f;
 
-    [Header("Volume")]
-    [Range(0f, 1f)] public float sfxVolume = 1f;
-    [Range(0f, 1f)] public float musicVolume = 0.5f;
+    [Header("=== EFECTOS DE SONIDO ===")]
+    [SerializeField] private AudioSource sfxSource;
+    [SerializeField] [Range(0f, 1f)] private float sfxVolume = 1f;
 
-    [Header("SFX Prefab")]
-    [Tooltip("Prefab con AudioSource configurado. Si es null se crea uno básico.")]
-    public AudioSource soundFXObject;
+    [Header("=== SONIDOS REGISTRADOS ===")]
+    [SerializeField] private Sound[] sounds;
 
-    [Header("Sound Effects")]
-    public SoundEffect[] soundEffects;
+    // Estado interno
+    private bool isMusicMuted = false;
+    private bool isSfxMuted   = false;
+    private Coroutine crossfadeCoroutine;
+    private bool usingSourceA = true; // Para el crossfade
 
-    [Header("Background Music")]
-    [Tooltip("Lista de pistas de música. El índice 0 se reproduce al arrancar.")]
-    public AudioClip[] backgroundMusics;
+    // Claves de PlayerPrefs
+    private const string PREF_MUSIC_VOL = "MusicVolume";
+    private const string PREF_SFX_VOL   = "SfxVolume";
+    private const string PREF_MUSIC_MUTE = "MusicMuted";
+    private const string PREF_SFX_MUTE   = "SfxMuted";
 
-    [Tooltip("Si está activado, al llamar NextMusic() vuelve al índice 0 al llegar al final.")]
-    public bool loopPlaylist = true;
-
-    [System.Serializable]
-    public class SoundEffect
+    // ─────────────────────────────────────────────
+    // Propiedades públicas
+    // ─────────────────────────────────────────────
+    public float MusicVolume
     {
-        public string name;
-        public AudioClip clip;
-        [Range(0f, 1f)] public float volume = 1f;
-        [Range(0.5f, 2f)] public float pitch = 1f;
+        get => musicVolume;
+        set
+        {
+            musicVolume = Mathf.Clamp01(value);
+            ApplyMusicVolume();
+            PlayerPrefs.SetFloat(PREF_MUSIC_VOL, musicVolume);
+        }
     }
 
-    private AudioSource musicSource;
-    private Dictionary<string, SoundEffect> sfxDict = new Dictionary<string, SoundEffect>();
-
-    // Índice de la pista actual en backgroundMusics
-    private int currentMusicIndex = -1;
-
-    void Awake()
+    public float SfxVolume
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+        get => sfxVolume;
+        set
+        {
+            sfxVolume = Mathf.Clamp01(value);
+            sfxSource.volume = isSfxMuted ? 0f : sfxVolume;
+            PlayerPrefs.SetFloat(PREF_SFX_VOL, sfxVolume);
+        }
+    }
+
+    public bool IsMusicMuted
+    {
+        get => isMusicMuted;
+        set
+        {
+            isMusicMuted = value;
+            ApplyMusicVolume();
+            PlayerPrefs.SetInt(PREF_MUSIC_MUTE, isMusicMuted ? 1 : 0);
+        }
+    }
+
+    public bool IsSfxMuted
+    {
+        get => isSfxMuted;
+        set
+        {
+            isSfxMuted = value;
+            sfxSource.volume = isSfxMuted ? 0f : sfxVolume;
+            PlayerPrefs.SetInt(PREF_SFX_MUTE, isSfxMuted ? 1 : 0);
+        }
+    }
+
+    // ─────────────────────────────────────────────
+    // Inicialización
+    // ─────────────────────────────────────────────
+    private void Awake()
+    {
+        // Singleton persistente entre escenas
+        if (Instance != null && Instance != this)
+        {
+            Destroy(gameObject);
+            return;
+        }
         Instance = this;
-        if (dontDestroyOnLoad) DontDestroyOnLoad(gameObject);
+        //DontDestroyOnLoad(gameObject);
 
-        musicSource = gameObject.AddComponent<AudioSource>();
-        musicSource.loop = true;
-        musicSource.playOnAwake = false;
-        musicSource.volume = musicVolume;
-        musicSource.spatialBlend = 0f;
+        // Crear AudioSources automáticamente si no están asignados
+        if (musicSource  == null) musicSource  = CreateAudioSource("MusicA",  false,  true);
+        if (musicSourceB == null) musicSourceB = CreateAudioSource("MusicB",  false,  true);
+        if (sfxSource    == null) sfxSource    = CreateAudioSource("SFX",     false, false);
 
-        foreach (var sfx in soundEffects)
-            if (!string.IsNullOrEmpty(sfx.name))
-                sfxDict[sfx.name] = sfx;
-
-        if (backgroundMusics != null && backgroundMusics.Length > 0)
-            PlayMusicByIndex(0);
+        LoadPreferences();
     }
 
-    // ──────────────────────────────────────────
-    //  PLAYLIST METHODS
-    // ──────────────────────────────────────────
-
-    /// <summary>Reproduce la pista en la posición indicada del array.</summary>
-    public void PlayMusicByIndex(int index)
+    private AudioSource CreateAudioSource(string sourceName, bool loop, bool playOnAwake)
     {
-        if (backgroundMusics == null || backgroundMusics.Length == 0) return;
-        index = Mathf.Clamp(index, 0, backgroundMusics.Length - 1);
-        currentMusicIndex = index;
-        PlayMusic(backgroundMusics[currentMusicIndex]);
+        var go = new GameObject(sourceName);
+        go.transform.SetParent(transform);
+        var src = go.AddComponent<AudioSource>();
+        src.loop        = loop;
+        src.playOnAwake = playOnAwake;
+        return src;
     }
 
-    public void NextMusic()
+    private void LoadPreferences()
     {
-        if (backgroundMusics == null || backgroundMusics.Length == 0) return;
+        musicVolume  = PlayerPrefs.GetFloat(PREF_MUSIC_VOL,  0.05f);
+        sfxVolume    = PlayerPrefs.GetFloat(PREF_SFX_VOL,    0.67f);
+        isMusicMuted = PlayerPrefs.GetInt(PREF_MUSIC_MUTE, 0) == 1;
+        isSfxMuted   = PlayerPrefs.GetInt(PREF_SFX_MUTE,   0) == 1;
 
-        int next = currentMusicIndex + 1;
-        if (next >= backgroundMusics.Length)
+        ApplyMusicVolume();
+        sfxSource.volume = isSfxMuted ? 0f : sfxVolume;
+    }
+
+    // ─────────────────────────────────────────────
+    // MÚSICA
+    // ─────────────────────────────────────────────
+
+    /// <summary>Reproduce música por nombre (registrada en el array sounds).</summary>
+    public void PlayMusic(string soundName, float fadeDuration = 0f)
+    {
+        Sound s = GetSound(soundName);
+        if (s == null) return;
+        PlayMusicClip(s.clip, fadeDuration);
+    }
+    
+    public void PlayMusic(string soundName)
+    {
+        float fadeDuration = 1f;
+        Sound s = GetSound(soundName);
+        if (s == null) return;
+        PlayMusicClip(s.clip, fadeDuration);
+    }
+
+    /// <summary>Reproduce un AudioClip directamente como música.</summary>
+    public void PlayMusicClip(AudioClip clip, float fadeDuration = 0f)
+    {
+        if (clip == null) return;
+
+        AudioSource active  = usingSourceA ? musicSource  : musicSourceB;
+        AudioSource passive = usingSourceA ? musicSourceB : musicSource;
+
+        if (fadeDuration > 0f)
         {
-            Debug.Log("[AudioManager] Ya estás en la última pista.");
-            return;
+            if (crossfadeCoroutine != null) StopCoroutine(crossfadeCoroutine);
+            passive.clip   = clip;
+            passive.volume = 0f;
+            passive.Play();
+            crossfadeCoroutine = StartCoroutine(CrossfadeRoutine(active, passive, fadeDuration));
+            usingSourceA = !usingSourceA;
         }
-
-        PlayMusicByIndex(next);
-    }
-
-    public void PreviousMusic()
-    {
-        if (backgroundMusics == null || backgroundMusics.Length == 0) return;
-
-        int prev = currentMusicIndex - 1;
-        if (prev < 0)
-        {
-            Debug.Log("[AudioManager] Ya estás en la primera pista.");
-            return;
-        }
-
-        PlayMusicByIndex(prev);
-    }
-
-    /// <summary>Alterna directamente entre dos índices (útil para combat/exploration music, etc.).</summary>
-    public void ToggleMusic(int indexA, int indexB)
-    {
-        if (currentMusicIndex == indexA)
-            PlayMusicByIndex(indexB);
         else
-            PlayMusicByIndex(indexA);
+        {
+            active.clip = clip;
+            active.volume = isMusicMuted ? 0f : musicVolume;
+            active.Play();
+            passive.Stop();
+        }
     }
 
-    /// <summary>Devuelve el índice de la pista que está sonando actualmente.</summary>
-    public int CurrentMusicIndex => currentMusicIndex;
-
-    // ──────────────────────────────────────────
-    //  SFX
-    // ──────────────────────────────────────────
-
-    public void PlaySFX(string sfxName, Transform spawnTransform)
+    /// <summary>Para la música con fade opcional.</summary>
+    public void StopMusic(float fadeDuration = 0f)
     {
-        if (!sfxDict.TryGetValue(sfxName, out SoundEffect sfx))
+        AudioSource active = usingSourceA ? musicSource : musicSourceB;
+        if (fadeDuration > 0f)
+            StartCoroutine(FadeOutRoutine(active, fadeDuration));
+        else
+            active.Stop();
+    }
+
+    /// <summary>Pausa / reanuda la música.</summary>
+    public void PauseMusic(bool pause)
+    {
+        AudioSource active = usingSourceA ? musicSource : musicSourceB;
+        if (pause) active.Pause(); else active.UnPause();
+    }
+
+    // ─────────────────────────────────────────────
+    // EFECTOS DE SONIDO
+    // ─────────────────────────────────────────────
+
+    /// <summary>Reproduce un SFX por nombre.</summary>
+    public void PlaySFX(string soundName)
+    {
+        Sound s = GetSound(soundName);
+        if (s != null) PlaySFXClip(s.clip, s.pitch, s.randomizePitch, s.pitchVariance);
+    }
+
+    /// <summary>Reproduce un SFX con volumen personalizado.</summary>
+    public void PlaySFX(string soundName, float volumeScale)
+    {
+        Sound s = GetSound(soundName);
+        if (s != null) sfxSource.PlayOneShot(s.clip, (isSfxMuted ? 0f : sfxVolume) * volumeScale);
+    }
+
+    /// <summary>Reproduce un AudioClip directamente como SFX.</summary>
+    public void PlaySFXClip(AudioClip clip, float pitch = 1f, bool randomizePitch = false, float pitchVariance = 0.1f)
+    {
+        if (clip == null || isSfxMuted) return;
+
+        float originalPitch  = sfxSource.pitch;
+        sfxSource.pitch      = randomizePitch
+            ? UnityEngine.Random.Range(pitch - pitchVariance, pitch + pitchVariance)
+            : pitch;
+        sfxSource.PlayOneShot(clip, sfxVolume);
+        sfxSource.pitch = originalPitch;
+    }
+
+    /// <summary>Reproduce un SFX en una posición 3D del mundo.</summary>
+    public void PlaySFXAt(string soundName, Vector3 position)
+    {
+        Sound s = GetSound(soundName);
+        if (s != null) AudioSource.PlayClipAtPoint(s.clip, position, isSfxMuted ? 0f : sfxVolume);
+    }
+
+    // ─────────────────────────────────────────────
+    // TOGGLE
+    // ─────────────────────────────────────────────
+    public void ToggleMusicMute() => IsMusicMuted = !isMusicMuted;
+    public void ToggleSfxMute()   => IsSfxMuted   = !isSfxMuted;
+
+    // ─────────────────────────────────────────────
+    // HELPERS PRIVADOS
+    // ─────────────────────────────────────────────
+    private void ApplyMusicVolume()
+    {
+        float vol = isMusicMuted ? 0f : musicVolume;
+        musicSource.volume  = vol;
+        musicSourceB.volume = vol;
+    }
+
+    private Sound GetSound(string name)
+    {
+        Sound s = Array.Find(sounds, x => x.name == name);
+        if (s == null) Debug.LogWarning($"[AudioManager] Sonido '{name}' no encontrado.");
+        return s;
+    }
+
+    // ─────────────────────────────────────────────
+    // COROUTINES
+    // ─────────────────────────────────────────────
+    private IEnumerator CrossfadeRoutine(AudioSource from, AudioSource to, float duration)
+    {
+        float elapsed = 0f;
+        float targetVol = isMusicMuted ? 0f : musicVolume;
+
+        while (elapsed < duration)
         {
-            Debug.LogWarning($"[AudioManager] SFX not found: '{sfxName}'");
-            return;
+            elapsed += Time.unscaledDeltaTime;
+            float t = elapsed / duration;
+            from.volume = Mathf.Lerp(targetVol, 0f, t);
+            to.volume   = Mathf.Lerp(0f, targetVol, t);
+            yield return null;
         }
 
-        if (sfx.clip == null)
+        from.Stop();
+        from.volume = targetVol;
+        to.volume   = targetVol;
+    }
+
+    private IEnumerator FadeOutRoutine(AudioSource source, float duration)
+    {
+        float startVol = source.volume;
+        float elapsed  = 0f;
+
+        while (elapsed < duration)
         {
-            Debug.LogWarning($"[AudioManager] Clip is null on SFX: '{sfxName}'");
-            return;
+            elapsed += Time.unscaledDeltaTime;
+            source.volume = Mathf.Lerp(startVol, 0f, elapsed / duration);
+            yield return null;
         }
 
-        Debug.Log($"[AudioManager] Playing SFX: '{sfxName}' at position {spawnTransform.position}");
-        AudioSource audioSource = soundFXObject != null
-            ? Instantiate(soundFXObject, spawnTransform.position, Quaternion.identity)
-            : new GameObject($"SFX_{sfx.clip.name}").AddComponent<AudioSource>();
-
-        audioSource.transform.position = spawnTransform.position;
-        audioSource.transform.SetParent(null);
-        audioSource.clip = sfx.clip;
-        audioSource.volume = sfx.volume * sfxVolume;
-        audioSource.pitch = sfx.pitch;
-        audioSource.spatialBlend = 1f;
-        audioSource.playOnAwake = false;
-        audioSource.Play();
-        Debug.Log($"[AudioManager] AudioSource state: clip={audioSource.clip.name}, time={audioSource.time}, isPlaying={audioSource.isPlaying}");
-        //Debug.Log($"[AudioManager] AudioSource state: clip={audioSource.clip.name}, time={audioSource.time}, isPlaying={audioSource.isPlaying}");
-
-        Destroy(audioSource.gameObject, audioSource.clip.length);
-    }
-
-    public void PlayMiaw(Transform t) => PlaySFX("Miaw", t);
-    public void PlayMetalPipe(Transform t) => PlaySFX("MetalPipe", t);
-    public void PlayAccelerator(Transform t) => PlaySFX("Accelerator", t);
-    public void PlayBoost(Transform t) => PlaySFX("BoostVelocity", t);
-    public void PlayCheckpoint(Transform t) => PlaySFX("Checkpoint", t);
-    public void PlayEnemyShot(Transform t) => PlaySFX("EnemyShot", t);
-    public void PlayShield(Transform t) => PlaySFX("Shield", t);
-    public void PlayEnemyDeath(Transform t) => PlaySFX("EnemyDeath", t);
-    public void PlayLoseRings(Transform t) => PlaySFX("LoseRings", t);
-    public void PlaySpikes(Transform t) => PlaySFX("Spikes", t);
-    public void PlayPickEmerald(Transform t) => PlaySFX("PickEmerald", t);
-    public void PlayPickRings(Transform t) => PlaySFX("PickRings", t);
-    public void PlayRunning(Transform t) => PlaySFX("Running", t);
-    public void PlayJump(Transform t) => PlaySFX("Jump", t);
-    public void PlayPowerUp(Transform t) => PlaySFX("PowerUp", t);
-    public void PlayTrampolines(Transform t) => PlaySFX("Trampolines", t);
-    public void PlayWalking(Transform t) => PlaySFX("Walking", t);
-    public void PlayEggmanLaugh(Transform t) => PlaySFX("EggmanLaugh", t);
-
-    // ──────────────────────────────────────────
-    //  MUSIC CORE
-    // ──────────────────────────────────────────
-
-    public void PlayMusic(AudioClip clip)
-    {
-        musicSource.clip = clip;
-        musicSource.volume = musicVolume;
-        musicSource.Play();
-    }
-
-    public void StopMusic() => musicSource.Stop();
-    public void PauseMusic() => musicSource.Pause();
-    public void ResumeMusic() => musicSource.UnPause();
-
-    public void SetMusicVolume(float value)
-    {
-        musicVolume = Mathf.Clamp01(value);
-        musicSource.volume = musicVolume;
-    }
-
-    public void SetSFXVolume(float value) => sfxVolume = Mathf.Clamp01(value);
-
-    public void PlayWinSequence(Transform t, string sfxName = "PowerUp")
-    {
-        StartCoroutine(WinSequenceRoutine(t, sfxName));
-    }
-
-    private IEnumerator WinSequenceRoutine(Transform t, string sfxName)
-    {
-        StopMusic();
-
-        if (sfxDict.TryGetValue(sfxName, out SoundEffect sfx) && sfx.clip != null)
-        {
-            PlaySFX(sfxName, t);
-            yield return new WaitForSeconds(sfx.clip.length);
-        }
-
-        PlayMusicByIndex(2);
+        source.Stop();
+        source.volume = startVol;
     }
 }

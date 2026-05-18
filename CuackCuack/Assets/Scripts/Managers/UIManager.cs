@@ -1,107 +1,118 @@
-using UnityEngine;
-using UnityEngine.UI;
 using TMPro;
+using UnityEngine;
 
-/// <summary>
-/// Manages all UI panels: HUD, pause menu, game over screen, loading screen.
-/// Singleton — add one instance to each scene that needs UI, or keep it DontDestroyOnLoad.
-/// Pair with GameManager events.
-/// </summary>
-public class UIManager : MonoBehaviour
+namespace Managers
 {
-    public static UIManager Instance { get; private set; }
-
-    [Header("Panels")]
-    public GameObject hudPanel;
-    public GameObject pausePanel;
-    public GameObject gameOverPanel;
-    public GameObject loadingPanel;
-    public GameObject mainMenuPanel;
-
-    [Header("HUD Elements")]
-    public TextMeshProUGUI interactionHintText;   // "Press E to interact"
-
-    [Header("Pause Menu Buttons")]
-    public Button resumeButton;
-    public Button restartButton;
-    public Button mainMenuButton;
-    public Button quitButton;
-
-    [Header("Game Over")]
-    public Button gameOverRestartButton;
-    public Button gameOverMainMenuButton;
-    public TextMeshProUGUI gameOverTitleText;
-
-    // ── Singleton ─────────────────────────────────────────────────────────────
-
-    void Awake()
+    /// <summary>
+    /// Central UI manager. Handles HUD, pause menu, loading screen,
+    /// notebook, screen messages and level selection menu.
+    /// Singleton — persists across scenes.
+    /// </summary>
+    public class UIManager : MonoBehaviour
     {
-        if (Instance != null && Instance != this) { Destroy(gameObject); return; }
-        Instance = this;
+        public static UIManager Instance { get; private set; }
+
+        [Header("Core Panels")]
+        public GameObject hudPanel;
+        public GameObject pausePanel;
+        public GameObject loadingPanel;
+        public GameObject levelMenuPanel;
+
+        [Header("HUD Elements")]
+        public TextMeshProUGUI interactionHintText;
+
+        [Header("Sub-systems (auto-found if null)")]
+        public NotebookUI notebookUI;
+        public ScreenMessageUI screenMessageUI;
+
+        // ── Singleton ─────────────────────────────────────────────────────────────
+
+        void Awake()
+        {
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+            Instance = this;
+
+            // Auto-find sub-systems on the same GameObject if not wired in Inspector
+            if (notebookUI == null) notebookUI = GetComponentInChildren<NotebookUI>(true);
+            if (screenMessageUI == null) screenMessageUI = GetComponentInChildren<ScreenMessageUI>(true);
+        }
+
+        void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
+
+        void OnEnable()
+        {
+            //GameManager.OnPauseChanged += OnPauseChanged;
+            GameManager.OnGameStart    += OnGameStart;
+        }
+
+        void OnDisable()
+        {
+            //GameManager.OnPauseChanged -= OnPauseChanged;
+            GameManager.OnGameStart    -= OnGameStart;
+        }
+
+        void Start()
+        {
+            SetPanel(hudPanel,       true);
+            SetPanel(pausePanel,     false);
+            SetPanel(loadingPanel,   false);
+            SetPanel(levelMenuPanel, false);
+        }
+
+        // ── Panel control ─────────────────────────────────────────────────────────
+
+        void OnGameStart()
+        {
+            SetPanel(hudPanel,       true);
+            SetPanel(pausePanel,     false);
+            SetPanel(levelMenuPanel, false);
+        }
+
+        void OnPauseChanged(bool paused)
+        {
+            SetPanel(pausePanel, paused);
+            SetPanel(hudPanel,   !paused);
+        }
+
+        public void ShowLoadingScreen(bool show) => SetPanel(loadingPanel, show);
+
+        public void ShowLevelMenu(bool show)
+        {
+            SetPanel(levelMenuPanel, show);
+            SetPanel(hudPanel, !show);
+            Cursor.lockState = show ? CursorLockMode.None : CursorLockMode.Locked;
+            Cursor.visible = show;
+        }
+
+        static void SetPanel(GameObject panel, bool active)
+        {
+            if (panel != null) panel.SetActive(active);
+        }
+
+        // ── HUD helpers ───────────────────────────────────────────────────────────
+
+        public void ShowInteractionHint(string message)
+        {
+            if (interactionHintText == null) return;
+            interactionHintText.text = message;
+            interactionHintText.gameObject.SetActive(!string.IsNullOrEmpty(message));
+        }
+
+        public void HideInteractionHint() => ShowInteractionHint(string.Empty);
+
+        /// <summary>Shows a timed on-screen message (e.g. "Glasses found!").</summary>
+        public void ShowMessage(string message)
+        {
+            screenMessageUI?.Show(message);
+        }
+
+        /// <summary>Refreshes the notebook task list after a task is completed.</summary>
+        public void RefreshNotebook()
+        {
+            notebookUI?.RefreshTasks();
+        }
     }
-
-    // ── Unity lifecycle ───────────────────────────────────────────────────────
-
-    void OnEnable()
-    {
-        GameManager.OnPauseChanged += OnPauseChanged;
-        GameManager.OnGameOver += OnGameOver;
-        GameManager.OnGameStart += OnGameStart;
-
-        resumeButton?.onClick.AddListener(() => GameManager.Instance.TogglePause());
-        restartButton?.onClick.AddListener(() => GameManager.Instance.ReloadCurrentScene());
-        mainMenuButton?.onClick.AddListener(() => GameManager.Instance.LoadMainMenu());
-        quitButton?.onClick.AddListener(() => GameManager.Instance.QuitGame());
-
-        gameOverRestartButton?.onClick.AddListener(() => GameManager.Instance.ReloadCurrentScene());
-        gameOverMainMenuButton?.onClick.AddListener(() => GameManager.Instance.LoadMainMenu());
-    }
-
-    void OnDisable()
-    {
-        GameManager.OnPauseChanged -= OnPauseChanged;
-        GameManager.OnGameOver -= OnGameOver;
-        GameManager.OnGameStart -= OnGameStart;
-    }
-
-    // ── Panel control ─────────────────────────────────────────────────────────
-
-    void OnGameStart()
-    {
-        SetPanel(hudPanel, true);
-        SetPanel(pausePanel, false);
-        SetPanel(gameOverPanel, false);
-        SetPanel(mainMenuPanel, false);
-    }
-
-    void OnPauseChanged(bool paused)
-    {
-        SetPanel(pausePanel, paused);
-        SetPanel(hudPanel, !paused && !GameManager.Instance.IsGameOver);
-    }
-
-    void OnGameOver()
-    {
-        SetPanel(gameOverPanel, true);
-        SetPanel(hudPanel, false);
-    }
-
-    public void ShowLoadingScreen(bool show) => SetPanel(loadingPanel, show);
-
-    static void SetPanel(GameObject panel, bool active)
-    {
-        if (panel != null) panel.SetActive(active);
-    }
-
-    // ── HUD helpers ───────────────────────────────────────────────────────────
-
-    /// <summary>Call from PlayerInteraction to show/hide the "Press E" hint.</summary>
-    public void ShowInteractionHint(string message)
-    {
-        if (interactionHintText == null) return;
-        interactionHintText.text = message;
-        interactionHintText.gameObject.SetActive(!string.IsNullOrEmpty(message));
-    }
-
-    public void HideInteractionHint() => ShowInteractionHint(string.Empty);
 }

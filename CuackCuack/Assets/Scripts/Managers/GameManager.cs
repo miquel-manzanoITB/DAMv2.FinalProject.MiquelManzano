@@ -1,114 +1,87 @@
+using Player;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using UnityEngine.Events;
 
-/// <summary>
-/// Central game manager. Handles scene transitions, pause state and global game flow.
-/// Singleton — persists across scenes. Place on a single GameObject in your first scene.
-/// </summary>
-public class GameManager : MonoBehaviour
+namespace Managers
 {
-    public static GameManager Instance { get; private set; }
-
-    // ── Events ────────────────────────────────────────────────────────────────
-
-    public static event UnityAction<bool> OnPauseChanged;   // true = paused
-    public static event UnityAction OnGameStart;
-    public static event UnityAction OnGameOver;
-
-    // ── State ─────────────────────────────────────────────────────────────────
-
-    public bool IsPaused { get; private set; }
-    public bool IsGameOver { get; private set; }
-
-    [Header("Scene Names")]
-    public string mainMenuScene = "MainMenu";
-    public string firstGameScene = "Level01";
-
-    // ── Singleton setup ───────────────────────────────────────────────────────
-
-    void Awake()
+    /// <summary>
+    /// Handles game state: pause and global events.
+    /// Scene transitions have moved to LevelManager.
+    /// Singleton — persists across scenes.
+    /// </summary>
+    public class GameManager : MonoBehaviour
     {
-        if (Instance != null && Instance != this)
+        public static GameManager Instance { get; private set; }
+
+        // ── Events ────────────────────────────────────────────────────────────────
+
+        public static event UnityAction<bool> OnPauseChanged;
+        public static event UnityAction OnGameStart;
+
+        // ── State ─────────────────────────────────────────────────────────────────
+
+        public bool IsPaused { get; private set; }
+
+        // ── Singleton ─────────────────────────────────────────────────────────────
+
+        void Awake()
         {
-            Destroy(gameObject);
-            return;
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
         }
-        Instance = this;
-        DontDestroyOnLoad(gameObject);
-    }
 
-    void OnEnable()
-    {
-        PlayerInputController.OnPauseEvent += TogglePause;
-        SceneManager.sceneLoaded += OnSceneLoaded;
-    }
+        void OnEnable()
+        {
+            PlayerInputController.OnPauseEvent += GoMainMenu;
+            LevelManager.OnSceneLoaded += OnSceneLoaded;
+        }
 
-    void OnDisable()
-    {
-        PlayerInputController.OnPauseEvent -= TogglePause;
-        SceneManager.sceneLoaded -= OnSceneLoaded;
-    }
+        void OnDisable()
+        {
+            PlayerInputController.OnPauseEvent -= GoMainMenu;
+            LevelManager.OnSceneLoaded -= OnSceneLoaded;
+        }
 
-    // ── Scene management ──────────────────────────────────────────────────────
+        void GoMainMenu()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            LevelManager.Instance?.LoadMainMenu();
+        } 
 
-    public void LoadScene(string sceneName)
-    {
-        SetPause(false);            // always unpause before transitioning
-        UIManager.Instance?.ShowLoadingScreen(true);
-        SceneManager.LoadScene(sceneName);
-    }
+        // ── Pause ─────────────────────────────────────────────────────────────────
 
-    public void LoadScene(int buildIndex) => LoadScene(SceneManager.GetSceneByBuildIndex(buildIndex).name);
+        public void TogglePause() => SetPause(!IsPaused);
 
-    public void ReloadCurrentScene() => LoadScene(SceneManager.GetActiveScene().name);
+        public void SetPause(bool paused)
+        {
+            if (IsPaused == paused) return;
 
-    public void LoadMainMenu() => LoadScene(mainMenuScene);
+            IsPaused = paused;
+            Cursor.lockState = paused ? CursorLockMode.None : CursorLockMode.Locked;
+            Cursor.visible = paused;
 
-    public void StartGame() => LoadScene(firstGameScene);
+            OnPauseChanged?.Invoke(paused);
+        }
 
-    public void QuitGame()
-    {
+        public void LoadScene(string sceneName) => LevelManager.Instance?.LoadLevel(sceneName);
+
+        public void QuitGame()
+        {
 #if UNITY_EDITOR
-        UnityEditor.EditorApplication.isPlaying = false;
+            UnityEditor.EditorApplication.isPlaying = false;
 #else
-        Application.Quit();
+            Application.Quit();
 #endif
-    }
+        }
 
-    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
-    {
-        UIManager.Instance?.ShowLoadingScreen(false);
-        IsGameOver = false;
+        // ── Internal ──────────────────────────────────────────────────────────────
 
-        bool isGameScene = scene.name != mainMenuScene;
-        if (isGameScene) OnGameStart?.Invoke();
-    }
-
-    // ── Pause ─────────────────────────────────────────────────────────────────
-
-    public void TogglePause() => SetPause(!IsPaused);
-
-    public void SetPause(bool paused)
-    {
-        if (IsPaused == paused) return;
-
-        IsPaused = paused;
-        Time.timeScale = paused ? 0f : 1f;
-
-        Cursor.lockState = paused ? CursorLockMode.None : CursorLockMode.Locked;
-        Cursor.visible = paused;
-
-        OnPauseChanged?.Invoke(paused);
-    }
-
-    // ── Game over ─────────────────────────────────────────────────────────────
-
-    public void TriggerGameOver()
-    {
-        if (IsGameOver) return;
-        IsGameOver = true;
-        SetPause(true);
-        OnGameOver?.Invoke();
+        void OnSceneLoaded(string sceneName)
+        {
+            bool isGameScene = !LevelManager.Instance.IsMainMenu();
+            if (isGameScene) OnGameStart?.Invoke();
+        }
     }
 }
