@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Level01Tasks
   m_EditorClassIdentifier: Assembly-CSharp::TaskData
   tasks:
-  - description: Find your glasses
-    isCompleted: 0
-  - description: Find the key to the drawer
+  - description: Encuentra las gafas
+    isCompleted: 1
+  - description: Sal para tocar cesped
     isCompleted: 0

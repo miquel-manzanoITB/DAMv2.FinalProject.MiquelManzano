@@ -25,6 +25,14 @@ namespace Managers
         [Header("Scene Names")]
         public string mainMenuScene = "MainMenu";
 
+        [Header("Blur")]
+        public Material blurMaterial;
+        public string blurProperty = "_Blur";
+        public float initialBlur = 3.5f;
+
+        [Header("Tasks")]
+        public TaskData taskData;
+
         // ── Singleton ─────────────────────────────────────────────────────────────
 
         void Awake()
@@ -57,6 +65,12 @@ namespace Managers
 
         void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            if (scene.name != mainMenuScene)
+            {
+                blurMaterial?.SetFloat(blurProperty, initialBlur);
+                taskData?.ResetAll();
+            }
+
             OnSceneLoaded?.Invoke(scene.name);
         }
     }

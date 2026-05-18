@@ -15,7 +15,7 @@ namespace Managers
         /// <summary>
         /// Lleva al jugador al menú principal. Desde allí puede seleccionar nivel.
         /// </summary>
-        public void OnLevelsClicked()
+        public void OnMainMenu()
         {
             GameManager.Instance?.SetPause(false);
             LevelManager.Instance?.LoadMainMenu();

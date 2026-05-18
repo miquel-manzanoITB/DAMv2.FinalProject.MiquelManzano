@@ -59,6 +59,8 @@ namespace Managers
             OnPauseChanged?.Invoke(paused);
         }
 
+        public void LoadScene(string sceneName) => LevelManager.Instance?.LoadLevel(sceneName);
+
         public void QuitGame()
         {
 #if UNITY_EDITOR
