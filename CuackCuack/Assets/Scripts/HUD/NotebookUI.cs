@@ -86,13 +86,18 @@ namespace Managers
             }
         }
 
-        public void CompleteTask(string description) => taskData.CompleteTask(description);
+        public void CompleteTask(string description)
+        {
+            global::AudioManager.Instance?.PlaySFX("TaskDone");
+            taskData.CompleteTask(description);
+        }
 
         // ── Private methods ───────────────────────────────────────────────────────
 
         void ToggleNotebook()
         {
             Debug.Log("Toggle Notebook");
+            global::AudioManager.Instance?.PlaySFX(_isOpen ? "CloseNotebook" : "OpenNotebook");
             if (GameManager.Instance != null && GameManager.Instance.IsPaused) return;
             SetOpen(!_isOpen);
         }

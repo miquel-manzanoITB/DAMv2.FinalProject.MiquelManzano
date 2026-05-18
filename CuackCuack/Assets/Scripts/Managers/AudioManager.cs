@@ -96,8 +96,8 @@ public class AudioManager : MonoBehaviour
         //DontDestroyOnLoad(gameObject);
 
         // Crear AudioSources automáticamente si no están asignados
-        if (musicSource  == null) musicSource  = CreateAudioSource("MusicA",  true,  true);
-        if (musicSourceB == null) musicSourceB = CreateAudioSource("MusicB",  true,  true);
+        if (musicSource  == null) musicSource  = CreateAudioSource("MusicA",  false,  true);
+        if (musicSourceB == null) musicSourceB = CreateAudioSource("MusicB",  false,  true);
         if (sfxSource    == null) sfxSource    = CreateAudioSource("SFX",     false, false);
 
         LoadPreferences();
@@ -115,8 +115,8 @@ public class AudioManager : MonoBehaviour
 
     private void LoadPreferences()
     {
-        musicVolume  = PlayerPrefs.GetFloat(PREF_MUSIC_VOL,  0.5f);
-        sfxVolume    = PlayerPrefs.GetFloat(PREF_SFX_VOL,    1.0f);
+        musicVolume  = PlayerPrefs.GetFloat(PREF_MUSIC_VOL,  0.05f);
+        sfxVolume    = PlayerPrefs.GetFloat(PREF_SFX_VOL,    0.67f);
         isMusicMuted = PlayerPrefs.GetInt(PREF_MUSIC_MUTE, 0) == 1;
         isSfxMuted   = PlayerPrefs.GetInt(PREF_SFX_MUTE,   0) == 1;
 
@@ -131,6 +131,14 @@ public class AudioManager : MonoBehaviour
     /// <summary>Reproduce música por nombre (registrada en el array sounds).</summary>
     public void PlayMusic(string soundName, float fadeDuration = 0f)
     {
+        Sound s = GetSound(soundName);
+        if (s == null) return;
+        PlayMusicClip(s.clip, fadeDuration);
+    }
+    
+    public void PlayMusic(string soundName)
+    {
+        float fadeDuration = 1f;
         Sound s = GetSound(soundName);
         if (s == null) return;
         PlayMusicClip(s.clip, fadeDuration);

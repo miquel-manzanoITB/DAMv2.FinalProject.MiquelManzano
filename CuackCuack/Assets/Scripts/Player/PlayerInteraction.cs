@@ -115,7 +115,7 @@ namespace Player
                 if (interactable != _hovered)
                 {
                     _hovered = interactable;
-                    if (crosshair) crosshair.color = Color.green;
+                    if (crosshair) crosshair.color = Color.gray7;
 
                     // Show interaction hint
                     Managers.UIManager.Instance?.ShowInteractionHint(_hovered?.GetHintText());
@@ -128,7 +128,7 @@ namespace Player
                     Managers.UIManager.Instance?.HideInteractionHint();
                 }
                 _hovered = null;
-                if (crosshair) crosshair.color = Color.white;
+                if (crosshair) crosshair.color = Color.gray9;
             }
 
             Debug.DrawRay(ray.origin, ray.direction * interactRange, _hovered != null ? Color.green : Color.red);
