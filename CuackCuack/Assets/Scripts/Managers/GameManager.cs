@@ -33,15 +33,22 @@ namespace Managers
 
         void OnEnable()
         {
-            PlayerInputController.OnPauseEvent += TogglePause;
+            PlayerInputController.OnPauseEvent += GoMainMenu;
             LevelManager.OnSceneLoaded += OnSceneLoaded;
         }
 
         void OnDisable()
         {
-            PlayerInputController.OnPauseEvent -= TogglePause;
+            PlayerInputController.OnPauseEvent -= GoMainMenu;
             LevelManager.OnSceneLoaded -= OnSceneLoaded;
         }
+
+        void GoMainMenu()
+        {
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            LevelManager.Instance?.LoadMainMenu();
+        } 
 
         // ── Pause ─────────────────────────────────────────────────────────────────
 
@@ -52,7 +59,6 @@ namespace Managers
             if (IsPaused == paused) return;
 
             IsPaused = paused;
-            Time.timeScale = paused ? 0f : 1f;
             Cursor.lockState = paused ? CursorLockMode.None : CursorLockMode.Locked;
             Cursor.visible = paused;
 

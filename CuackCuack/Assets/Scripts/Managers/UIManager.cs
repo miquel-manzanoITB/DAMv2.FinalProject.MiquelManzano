@@ -45,13 +45,13 @@ namespace Managers
 
         void OnEnable()
         {
-            GameManager.OnPauseChanged += OnPauseChanged;
+            //GameManager.OnPauseChanged += OnPauseChanged;
             GameManager.OnGameStart    += OnGameStart;
         }
 
         void OnDisable()
         {
-            GameManager.OnPauseChanged -= OnPauseChanged;
+            //GameManager.OnPauseChanged -= OnPauseChanged;
             GameManager.OnGameStart    -= OnGameStart;
         }
 

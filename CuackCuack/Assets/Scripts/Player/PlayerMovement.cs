@@ -27,6 +27,7 @@ namespace Player
         private PlayerInteraction _interaction;
         private Vector2 _moveInput;
         private bool _isGrounded;
+        private bool _isPaused;
 
         // ── Unity lifecycle ───────────────────────────────────────────────────────
 
@@ -44,26 +45,37 @@ namespace Player
         {
             _input.OnMoveEvent += OnMove;
             _input.OnJumpEvent += OnJump;
+            Managers.GameManager.OnPauseChanged += OnPauseChanged;
         }
 
         void OnDisable()
         {
             _input.OnMoveEvent -= OnMove;
             _input.OnJumpEvent -= OnJump;
+            Managers.GameManager.OnPauseChanged -= OnPauseChanged;
         }
 
         void Update()
         {
+            if (_isPaused) return;
             CheckGround();
             _playerCamera.SetMoving(_moveInput != Vector2.zero && _isGrounded);
         }
 
         void FixedUpdate()
         {
+            if (_isPaused) return;
             Move();
         }
 
         // ── Input handlers ────────────────────────────────────────────────────────
+
+        void OnPauseChanged(bool paused)
+        {
+            _isPaused = paused;
+            _moveInput = Vector2.zero;
+            _rb.isKinematic = paused;
+        }
 
         void OnMove(Vector2 input) => _moveInput = input;
 

@@ -10,13 +10,8 @@ namespace Managers
     /// </summary>
     public class MainMenuUI : MonoBehaviour
     {
-        [Header("Panels")]
-        public GameObject mainPanel;    // Botones: Jugar, Niveles, Salir
-        public GameObject levelPanel;   // LevelMenuUI vive aquí
-
         void Start()
         {
-            ShowMain();
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
         }
@@ -26,31 +21,16 @@ namespace Managers
         /// <summary>Empieza desde el primer nivel.</summary>
         public void OnPlayClicked()
         {
-            // LevelMenuData define cuál es el primer nivel.
-            // Alternativamente hardcodea el nombre de escena aquí.
-            var levelMenu = levelPanel.GetComponent<LevelMenuUI>();
-            if (levelMenu != null && levelMenu.levelMenuData?.levels.Count > 0)
-                LevelManager.Instance?.LoadLevel(levelMenu.levelMenuData.levels[0].sceneName);
+            LevelManager.Instance?.LoadLevel("Level01");
         }
 
         /// <summary>Abre el panel de selección de niveles.</summary>
-        public void OnLevelsClicked()
-        {
-            mainPanel.SetActive(false);
-            levelPanel.SetActive(true);
-        }
 
         /// <summary>Vuelve al panel principal desde el selector de niveles.</summary>
-        public void OnBackClicked() => ShowMain();
 
         public void OnQuitClicked() => GameManager.Instance?.QuitGame();
 
         // ── Internal ──────────────────────────────────────────────────────────────
 
-        void ShowMain()
-        {
-            mainPanel.SetActive(true);
-            levelPanel.SetActive(false);
-        }
     }
 }

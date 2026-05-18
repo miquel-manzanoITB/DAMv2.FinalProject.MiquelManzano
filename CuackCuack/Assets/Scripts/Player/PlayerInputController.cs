@@ -42,14 +42,43 @@ namespace Player
         void OnEnable()
         {
             _inputActions.Enable();
-            Managers.GameManager.OnPauseChanged += SetCameraLockedByUI;
+            //Managers.GameManager.OnPauseChanged += OnPauseChanged;
         }
 
         void OnDisable()
         {
             _inputActions.Disable();
-            Managers.GameManager.OnPauseChanged -= SetCameraLockedByUI;
+            //Managers.GameManager.OnPauseChanged -= OnPauseChanged;
         }
+
+        /*
+        void OnPauseChanged(bool paused)
+        {
+            SetCameraLockedByUI(paused);
+            if (paused)
+            {
+                _inputActions.Player.Move.Disable();
+                _inputActions.Player.Look.Disable();
+                _inputActions.Player.Jump.Disable();
+                _inputActions.Player.Interact.Disable();
+                _inputActions.Player.PickUp.Disable();
+                _inputActions.Player.Scroll.Disable();
+                _inputActions.Player.RotateObject.Disable();
+                _inputActions.Player.Notebook.Disable();
+            }
+            else
+            {
+                _inputActions.Player.Move.Enable();
+                _inputActions.Player.Look.Enable();
+                _inputActions.Player.Jump.Enable();
+                _inputActions.Player.Interact.Enable();
+                _inputActions.Player.PickUp.Enable();
+                _inputActions.Player.Scroll.Enable();
+                _inputActions.Player.RotateObject.Enable();
+                _inputActions.Player.Notebook.Enable();
+            }
+        }
+        */
 
         // ── Public API ────────────────────────────────────────────────────────────
 

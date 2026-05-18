@@ -26,7 +26,7 @@ public class GlassesPuzzle : MonoBehaviour
     public int taskIndex = 0;
 
     [Header("Messages")]
-    public string foundMessage = "You found your glasses!";
+    public string foundMessage = "!Has encontrado las gafas!";
 
     [Header("Events")]
     public UnityEvent onGlassesFound;
@@ -41,7 +41,7 @@ public class GlassesPuzzle : MonoBehaviour
     void Awake()
     {
         _interactable = GetComponent<Interactable>();
-        _interactable.hintText = "Pick up glasses";
+        _interactable.hintText = "Coger E";
     }
 
     void OnEnable()  => _interactable.onInteract.AddListener(OnFound);
