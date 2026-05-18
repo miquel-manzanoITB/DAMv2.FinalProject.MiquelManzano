@@ -93,7 +93,7 @@ public class AudioManager : MonoBehaviour
             return;
         }
         Instance = this;
-        DontDestroyOnLoad(gameObject);
+        //DontDestroyOnLoad(gameObject);
 
         // Crear AudioSources automáticamente si no están asignados
         if (musicSource  == null) musicSource  = CreateAudioSource("MusicA",  true,  true);

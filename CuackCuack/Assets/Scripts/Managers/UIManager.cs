@@ -31,7 +31,6 @@ namespace Managers
         {
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
-            DontDestroyOnLoad(gameObject);
 
             // Auto-find sub-systems on the same GameObject if not wired in Inspector
             if (notebookUI == null) notebookUI = GetComponentInChildren<NotebookUI>(true);
